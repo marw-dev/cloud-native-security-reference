@@ -6,7 +6,7 @@ The architecture is designed for **defense-in-depth** and **strict separation of
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Core:** Go (using `chi` router)
 - **Persistence:** MySQL (via `sqlx`)
@@ -43,7 +43,7 @@ The architecture is designed for **defense-in-depth** and **strict separation of
 - **Control Plane API:** Exposes secured endpoints for Aegis to fetch configurations.
 - **Hot-Reloading Support:** Provides endpoints for Route Configs (`/internal/v1/routes/config`) and Context Maps (`/internal/v1/context-map`).
 
-### 👁 Deep Observability
+### Deep Observability
 
 - **Structured Logging:** JSON-formatted logs correlated with Trace IDs for seamless debugging.
 - **Audit Trails:** Immutable audit logs for all security-critical actions (Login, OTP setup, Permission changes).
