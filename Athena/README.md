@@ -1,99 +1,102 @@
-# Athena - Zentraler Authentifizierungs- und Konfigurationsdienst
+# Athena - Identity & Configuration Service
 
-Athena ist ein hochsicherer, "Vault-First" Backend-Dienst, geschrieben in Go. Es dient als zentrales Nervensystem für das Aegis API Gateway, indem es Benutzerauthentifizierung, Multi-Tenancy-Projektmanagement und die dynamische Konfiguration von Gateway-Routen verwaltet.
+Athena is a hardened, **"Vault-First"** backend service written in Go. It acts as the authoritative control plane for the Aegis API Gateway, managing user identities, multi-tenant project isolation, and dynamic routing configurations.
 
-Das Projekt ist auf **maximale Sicherheit** und **strikte Trennung von Geheimnissen** ausgelegt.
-
----
-
-## Tech Stack
-
-- **Kern:** Go (mit Chi-Router)
-- **Datenbank:** MySQL (mit `sqlx`)
-- **Secrets:** HashiCorp Vault (via AppRole, **zwingend erforderlich**)
-- **Observability-Stack (LGTM):**
-  - **L**oki (Logs)
-  - **G**rafana (Dashboards)
-  - **T**empo (Traces)
-  - **M**etriken (Prometheus)
-- **Deployment:** Docker, `docker-compose`
+The architecture is designed for **defense-in-depth** and **strict separation of secrets**.
 
 ---
 
-## Hauptfunktionen
+## 🛠 Tech Stack
 
-- **Zentrale Authentifizierung:**
-  - **JWT (RS256):** Erstellt signierte RSA-Tokens (Access, Refresh, Grace).
-  - **Passwort-Sicherheit:** Verwendet `bcrypt` für das Hashen von Passwörtern.
-  - **Token-Rotation:** Implementiert einen sicheren Refresh-Token-Flow mit Rotation.
-- **Multi-Tenancy-Architektur:**
-  - **Projekt-Management:** Kapselt Benutzer und Routen in "Projekte".
-  - **Host-basiertes Routing:** Weist Domains (z.B. `webshop.com`) zu Projekt-IDs zu.
-- **Granulares Sicherheitsmanagement:**
-  - **Rollenbasiert (ACL):** Definiert globale Admin-Rollen (`is_admin`) und Projekt-Rollen (z.B. `owner`, `admin`, `user`).
-  - **Zwei-Faktor-Authentifizierung (2FA):** Bietet 2FA auf globaler Ebene (für Admins) und pro Projekt (kann erzwungen werden).
-- **Dynamische Gateway-Konfiguration:**
-  - **Interne API:** Stellt eine (mit `X-Internal-Secret`) gesicherte API für Aegis bereit.
-  - **Config-Endpoint:** Liefert alle Projekt-Routen (`/internal/v1/routes/config`).
-  - **Context-Map-Endpoint:** Liefert die Host-zu-Projekt-Map (`/internal/v1/context-map`).
-- **Volle Beobachtbarkeit:**
-  - **Strukturiertes Logging:** Verwendet `slog` für alle Logs.
-  - **Audit Trail:** Erstellt dedizierte Audit-Logs für sicherheitsrelevante Aktionen (z.B. Login, OTP-Setup, Rollenänderung).
+- **Core:** Go (using `chi` router)
+- **Persistence:** MySQL (via `sqlx`)
+- **Secret Management:** HashiCorp Vault (AppRole Auth **enforced**)
+- **Observability (LGTM Stack):**
+  - **L**oki (Structured Logs via `slog`)
+  - **G**rafana (Visualizations)
+  - **T**empo (Distributed Tracing via OTel)
+  - **M**etrics (Prometheus)
+- **Infrastructure:** Docker, `docker-compose`
 
 ---
 
-## Technische Features (Übersicht)
+## Key Features
 
-Athena ist ein API-Dienst, der die Logik für Authentifizierung und Konfiguration bereitstellt. Im Gegensatz zu Aegis (einem reinen Middleware-Proxy) implementiert Athena die Business-Logik.
+### Centralized Authentication
 
-### 1. Vault-First Architektur
+- **Asymmetric JWTs (RS256):** Issues cryptographically signed RSA tokens (Access, Refresh, and Grace tokens).
+- **Password Security:** Implements `bcrypt` with high work factors for credential hashing.
+- **Secure Token Rotation:** Features a robust refresh token flow with automatic reuse detection (token family invalidation).
 
-Das Kernprinzip von Athena ist, dass **keine** sensiblen Geheimnisse (wie DB-Passwörter oder JWT-Schlüssel) jemals in Umgebungsvariablen oder `.env`-Dateien gespeichert werden.
+### Multi-Tenancy Architecture
 
-- **Startvorgang:** Beim Start ruft `main.go` die Funktion `auth.LoadAthenaSecretsFromVault` auf.
-- **AppRole-Login:** Diese Funktion nutzt die bereitgestellten `ATHENA_APPROLE_ROLE_ID` und `ATHENA_APPROLE_SECRET_ID`, um sich per AppRole bei Vault anzumelden.
-- **Secret-Abruf:** Nach erfolgreichem Login liest Athena die Geheimnisse aus den in Vault konfigurierten Pfaden:
-    1.  **JWT-Geheimnisse** (`VAULT_JWT_SECRET_PATH`): Lädt `private_key`, `public_key` und `registration_secret`.
-    2.  **DB-Geheimnisse** (`VAULT_DB_CREDS_PATH`): Lädt die `database_url`.
-- **Fehlschlag:** Wenn einer dieser Schritte fehlschlägt, bricht der Dienst den Start ab.
+- **Project Isolation:** Encapsulates users, roles, and routes within logical "Projects".
+- **Domain-Based Routing:** Dynamically maps incoming Host headers (e.g., `shop.client.com`) to specific Project IDs.
 
-### 2. Multi-Tenancy Authentifizierungs-Fluss
+### Granular Access Control (RBAC)
 
-Athena unterscheidet zwischen zwei Haupt-Login-Szenarien, die durch den von Aegis bereitgestellten `X-Project-ID`-Header gesteuert werden:
+- **Role Management:** Distinguishes between Global Admin roles (`is_admin`) and scoped Project Roles (e.g., `owner`, `maintainer`, `viewer`).
+- **Two-Factor Authentication (2FA):** Supports TOTP-based 2FA globally (for admins) and enforces it per-project based on policy.
 
-1.  **Globaler Login (Admin-UI):**
-    -   Aegis erkennt den Admin-Host (z.B. `athena.meinefirma.de`) und setzt *keinen* `X-Project-ID`-Header.
-    -   Athena's `LoginHandler` erkennt das Fehlen der Projekt-ID.
-    -   Er prüft, ob der Benutzer `is_admin` ist und ob globales 2FA aktiv ist.
-    -   Der ausgestellte JWT enthält `is_admin: true`, aber keine Projekt-Rollen.
+### Dynamic Gateway Configuration
 
-2.  **Projekt-Login (Kunden-App):**
-    -   Aegis erkennt einen Kunden-Host (z.B. `webshop.com`), schlägt ihn in der `ContextMap` nach und injiziert den `X-Project-ID`-Header.
-    -   Athena's Middleware (`ProjectIDValidator`) liest diesen Header.
-    -   Der `LoginHandler` wechselt in den `handleProjectLogin`-Modus.
-    -   Er prüft Anmeldedaten *und* ob der Benutzer Mitglied dieses Projekts ist.
-    -   Er prüft Projekt-spezifisches 2FA (auch `force_2fa`-Einstellungen).
-    -   Der ausgestellte JWT enthält die Rollen des Benutzers *innerhalb dieses Projekts* (z.B. `user`).
+- **Control Plane API:** Exposes secured endpoints for Aegis to fetch configurations.
+- **Hot-Reloading Support:** Provides endpoints for Route Configs (`/internal/v1/routes/config`) and Context Maps (`/internal/v1/context-map`).
 
-### 3. Interne API (Für Aegis)
+### 👁 Deep Observability
 
-Athena stellt eine separate, interne API unter `/internal/v1` bereit. Diese wird von Aegis genutzt, um seine Konfiguration zu laden.
-
--   **Sicherheit:** Diese Routen werden durch die `InternalAuth`-Middleware geschützt.
--   **Geteiltes Geheimnis:** Diese Middleware prüft auf ein statisches `X-Internal-Secret`-Header. Dies ist das *einzige* Geheimnis, das zwischen Aegis und Athena über Umgebungsvariablen geteilt wird (`ATHENA_INTERNAL_SECRET`). Es wird *nicht* aus Vault geladen, um einen Henne-Ei-Konflikt beim Start von Aegis zu vermeiden.
+- **Structured Logging:** JSON-formatted logs correlated with Trace IDs for seamless debugging.
+- **Audit Trails:** Immutable audit logs for all security-critical actions (Login, OTP setup, Permission changes).
 
 ---
 
-## Schnellstart (Lokal mit Observability)
+## Technical Deep Dive
 
-Sie benötigen `go`, `docker` und `docker-compose`.
+Athena serves as the business logic layer, while Aegis acts as the edge proxy.
 
-Das Starten von Athena ist Teil des gesamten `docker-compose`-Setups im `Aegis`-Verzeichnis.
+### 1. Vault-First Architecture
 
-### 1. Monitoring-Stack starten
+Athena adopts a **Zero-Trust approach** to bootstrapping. No sensitive secrets (database credentials, private keys) are ever stored in environment variables or configuration files.
 
-Starten Sie Grafana und die dazugehörigen Datenbanken (Loki, Tempo, Prometheus).
+1.  **Bootstrapping:** On startup, `main.go` initializes the Vault client using `ATHENA_APPROLE_ROLE_ID` & `SECRET_ID`.
+2.  **AppRole Login:** Authenticates against HashiCorp Vault to obtain a temporary client token.
+3.  **Secret Injection:** Fetches secrets directly into memory:
+    - **PKI:** `private_key`, `public_key`, and `registration_secret` from `VAULT_JWT_SECRET_PATH`.
+    - **Database:** Generates ephemeral MySQL credentials via `VAULT_DB_CREDS_PATH`.
+4.  **Fail-Safe:** If Vault is unreachable or authentication fails, the service refuses to start (Fail Fast).
+
+### 2. Multi-Tenant Authentication Flow
+
+Athena determines the login context based on headers injected by the Aegis Gateway:
+
+- **Global Context (Admin UI):**
+
+  - _Trigger:_ No `X-Project-ID` header present.
+  - _Logic:_ Authenticates against the global user table. Checks for `is_admin` privileges and global 2FA requirements.
+  - _Result:_ JWT contains global scope but no project claims.
+
+- **Project Context (Tenant App):**
+  - _Trigger:_ Aegis resolves the Host to a Tenant and injects `X-Project-ID`.
+  - _Logic:_ Athena validates credentials AND membership within the specific project. Enforces project-specific policies (e.g., `force_2fa`).
+  - _Result:_ JWT contains scoped roles (e.g., `role: "admin"`) valid only for that project.
+
+### 3. Internal Control API
+
+Communication between Aegis (Gateway) and Athena (Control Plane) occurs over a secured internal network.
+
+- **Security:** Protected by the `InternalAuth` middleware.
+- **The "Bootstrap Secret":** Uses a static `X-Internal-Secret` header.
+  - _Note:_ This is the **only** secret shared via environment variables (`ATHENA_INTERNAL_SECRET`). This architectural decision avoids a "chicken-and-egg" problem where the Gateway would need to fetch Vault secrets before being able to route requests.
+
+---
+
+## Quick Start
+
+Ensure `go`, `docker`, and `docker-compose` are installed.
+
+To start Athena as part of the complete system (including Vault and Observability), run the compose file from the root directory:
 
 ```bash
-# (Im Aegis-Verzeichnis ausf)
+# From the project root (Aegis/)
 docker compose up -d
+```

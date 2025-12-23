@@ -1,188 +1,178 @@
-HashiCorp Vault Konfiguration für Aegis & Athena
+# HashiCorp Vault Configuration Guide
 
-Diese Dokumentation beschreibt die Einrichtung und Konfiguration von HashiCorp Vault für die Microservices Athena (Auth & Config Service) und Aegis (API Gateway).
+This guide details the security infrastructure setup for **Aegis (API Gateway)** and **Athena (Identity Service)** using HashiCorp Vault.
 
-Das System verwendet den AppRole-Authentifizierungsmechanismus, um Containern sicheren Zugriff auf Geheimnisse zu gewähren, ohne statische Tokens im Code zu hinterlegen.
+The architecture enforces a **Zero-Trust** model using **AppRole Authentication** to inject secrets into the containers at runtime. No static secrets or credentials are stored in the source code.
 
-1. Architektur & Übersicht
+---
 
-Vault dient als "Source of Truth" für zwei Arten von Geheimnissen:
+## Architecture Overview
 
-Statische Geheimnisse (KV v2):
+Vault acts as the central "Source of Truth" managing two types of secrets:
 
-secret/data/athena/jwt: Enthält RSA-Schlüssel für JWT-Signierung und das Registrierungs-Secret.
+1.  **Static Secrets (KV v2 Engine):**
 
-secret/data/aegis/config: Enthält Konfigurationsdaten für das Gateway (falls verwendet).
+    - `secret/data/athena/jwt`: Stores RSA Keypairs (Private/Public) for JWT signing and the generic registration secret.
+    - `secret/data/aegis/config`: Stores gateway-specific configuration (if applicable).
 
-Dynamische Geheimnisse (Database Engine):
+2.  **Dynamic Secrets (Database Engine):**
+    - `database/creds/athena-role`: Generates **ephemeral, short-lived** MySQL database credentials for the Athena service.
 
-database/creds/athena-role: Generiert temporäre Datenbank-Benutzer für Athena.
+---
 
-2. Voraussetzungen
+## 1. Prerequisites
 
-Stellen Sie sicher, dass Vault läuft und entsperrt ("unsealed") ist. Sie benötigen das Root-Token oder ein Token mit entsprechenden Rechten.
+Ensure your Vault instance is initialized and unsealed.
 
 ```bash
+# Set environment variables for CLI access
 export VAULT_ADDR='[http://127.0.0.1:8200](http://127.0.0.1:8200)'
-export VAULT_TOKEN='<Ihr-Root-Token>'
+export VAULT_TOKEN='<YOUR-ROOT-TOKEN>'
+
 ```
 
-3. Datenbank-Engine & Rollen Setup
+## 2. Infrastructure Setup
 
-Bevor die AppRoles funktionieren, muss die Datenbank-Engine konfiguriert sein.
+### 2.1 Enable Secret Engines
 
-3.1. MySQL-Verbindung konfigurieren
+Enable the necessary secret engines for Key-Value storage and Database generation.
 
-Verbindet Vault mit der MySQL-Datenbank unter Verwendung eines dedizierten vault_admin Benutzers.
+```bash
+# Enable KV v2 (Static Secrets)
+vault secrets enable -path=secret kv-v2
 
+# Enable Database Engine (Dynamic Secrets)
 vault secrets enable database
+```
 
-# Konfiguration der Verbindung (User muss in MySQL existieren)
+### 2.2 Configure MySQL Connection
+
+Connect Vault to the MySQL container using a privileged bootstrap user (e.g., vault_admin).
 
 ```bash
 vault write database/config/athena-db \
- plugin_name=mysql-database-plugin \
- connection_url="{{username}}:{{password}}@tcp(db:3306)/" \
- allowed_roles="athena-role" \
- username="vault_admin" \
- password="secure-vault-password"
+    plugin_name=mysql-database-plugin \
+    connection_url="{{username}}:{{password}}@tcp(db:3306)/" \
+    allowed_roles="athena-role" \
+    username="vault_admin" \
+    password="secure-vault-password"
 ```
 
-3.2. Athena-Rolle erstellen
+### 2.3 Create Database Role (Athena)
 
-Diese Rolle definiert, welche Rechte die temporären Datenbank-User erhalten, die für den Athena-Service generiert werden. Beachten Sie das revocation_statement zur Vermeidung von MySQL-Fehlern beim Löschen.
+Define the permissions for the ephemeral users created by Athena.
 
-```bash
-vault write database/roles/athena-role \
-    db_name=athena-db \
-    creation_statements="CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES ON athena_db.* TO '{{name}}'@'%';" \
-    revocation_statements="DROP USER '{{name}}'@'%';" \
-    default_ttl="1h" \
-    max_ttl="24h"
-```
+- **Default TTL:** 1 hour (Credentials expire automatically).
+- **Revocation:** Ensures the user is dropped from MySQL when the lease expires.
 
-4. Richtlinien (Policies) erstellen
+## 3. Access Control (Policies)
 
-Richtlinien definieren genau, wer was lesen darf. Wir erstellen getrennte Richtlinien für Athena und Aegis.
+We apply the Principle of Least Privilege. Each service gets its own specific policy.
 
-4.1. Athena Policy
+### 3.1 Athena Policy
 
-Athena benötigt Zugriff auf JWT-Schlüssel und muss Datenbank-Credentials generieren können.
-
-# Policy-Datei erstellen
+Athena requires access to RSA keys and the ability to generate DB credentials.
 
 ```bash
-echo '
-# Lesezugriff auf JWT-Schlüssel und Registrierungs-Secret
+
+# Create policy file
+cat <<EOF > /tmp/athena-policy.hcl
+# Read RSA Keys and Registration Secret
 path "secret/data/athena/jwt" {
     capabilities = ["read"]
 }
-```
 
-# Dynamische DB-Secrets generieren
-
-```bash
-echo '
+# Generate dynamic MySQL credentials
 path "database/creds/athena-role" {
-  capabilities = ["read"]
+    capabilities = ["read"]
 }
-' > /tmp/athena-policy.hcl
+EOF
 
-# Policy in Vault schreiben
-
+# Apply policy
 vault policy write athena /tmp/athena-policy.hcl
 ```
 
-4.2. Aegis Policy
+### 3.2 Aegis Policy
 
-Aegis benötigt Lesezugriff auf seine eigene Konfiguration.
-
-# Policy-Datei erstellen
+Aegis only requires read access to its specific configuration.
 
 ```bash
-echo '
-
-# Lesezugriff auf Gateway-Konfigurationen
-
+# Create policy file
+cat <<EOF > /tmp/aegis-policy.hcl
 path "secret/data/aegis/config" {
-capabilities = ["read"]
+    capabilities = ["read"]
 }
-' > /tmp/aegis-policy.hcl
+EOF
 
-# Policy in Vault schreiben
-
+# Apply policy
 vault policy write aegis /tmp/aegis-policy.hcl
 ```
 
-5. AppRole Authentifizierung einrichten
+## 4. AppRole Authentication Setup
 
-Wir aktivieren die AppRole-Methode und verknüpfen die oben erstellten Richtlinien mit Rollen.
+AppRole is the standard authentication method for machine-to-machine communication.
 
-5.1. AppRole aktivieren
+### 4.1 Enable AppRole Auth Method
 
 ```bash
 vault auth enable approle
 ```
 
-5.2. Rollen definieren
+### 4.2 Define Service Roles
 
-# Athena Rolle erstellen (verknüpft mit 'athena' Policy)
-
-```bash
-vault write auth/approle/role/athena token_policies="athena" token_ttl=1h
-```
-
-# Aegis Rolle erstellen (verknüpft mit 'aegis' Policy)
+Link the AppRoles to the policies created in Step 3.
 
 ```bash
-vault write auth/approle/role/aegis token_policies="aegis" token_ttl=1h
+# Create Athena Role
+vault write auth/approle/role/athena \
+    token_policies="athena" \
+    token_ttl=1h
+
+# Create Aegis Role
+vault write auth/approle/role/aegis \
+    token_policies="aegis" \
+    token_ttl=1h
 ```
 
-6. Credentials abrufen (Für Deployment)
+## 5. Deployment & Seed Data
 
-Damit die Container starten können, benötigen sie die RoleID und die SecretID. Diese müssen in die .env Datei eingetragen werden.
+### 5.1 Seed Initial Secrets (RSA Keys)
 
-Für Athena:
+Upload your generated RSA keys to Vault so Athena can fetch them on startup.
 
-# Role ID abrufen
-
-```bash
-vault read auth/approle/role/athena/role-id
-```
-
-# Secret ID generieren
-
-```bash
-vault write -f auth/approle/role/athena/secret-id
-```
-
-Kopieren Sie die Werte in Aegis/.env unter ATHENA_APPROLE_ROLE_ID und ATHENA_APPROLE_SECRET_ID.
-
-Für Aegis:
-
-# Role ID abrufen
-
-```bash
-vault read auth/approle/role/aegis/role-id
-```
-
-# Secret ID generieren
-
-```bash
-vault write -f auth/approle/role/aegis/secret-id
-```
-
-Kopieren Sie die Werte in Aegis/.env unter AEGIS_APPROLE_ROLE_ID und AEGIS_APPROLE_SECRET_ID.
-
-7. Statische Secrets initialisieren
-
-Vergessen Sie nicht, die JWT-Schlüssel initial in Vault zu schreiben, damit Athena sie lesen kann.
-
-# Beispiel (Pfade zu Ihren generierten PEM-Dateien anpassen)
+> Note: Ensure your .pem files are located in Athena/keys/.
 
 ```bash
 vault kv put secret/athena/jwt \
- private_key=@Athena/keys/private.pem \
- public_key=@Athena/keys/public.pem \
- registration_secret="IhrAdminSecret"
+    private_key=@Athena/keys/private.pem \
+    public_key=@Athena/keys/public.pem \
+    registration_secret="YourSuperSecureAdminSecret"
 ```
+
+### 5.2 Retrieve Credentials for .env
+
+To start the containers, you need to inject the RoleID (Static Identity) and SecretID (One-Time Password) into your environment configuration.
+
+**For Athena Service:**
+
+```bash
+# Get Role ID
+vault read auth/approle/role/athena/role-id
+
+# Generate Secret ID
+vault write -f auth/approle/role/athena/secret-id
+```
+
+Copy these values to Aegis/.env as ATHENA_APPROLE_ROLE_ID and ATHENA_APPROLE_SECRET_ID.
+
+**For Aegis Service:**
+
+```bash
+# Get Role ID
+vault read auth/approle/role/aegis/role-id
+
+# Generate Secret ID
+vault write -f auth/approle/role/aegis/secret-id
+```
+
+Copy these values to Aegis/.env as AEGIS_APPROLE_ROLE_ID and AEGIS_APPROLE_SECRET_ID.
