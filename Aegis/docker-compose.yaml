@@ -1,0 +1,232 @@
+services:
+  # 1. Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+    volumes:
+      - ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml
+    ports:
+      - "9091:9090"
+    networks:
+      - monitoring_net
+
+  # 2. Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./monitoring/loki-config.yaml:/etc/loki/loki-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - monitoring_net
+
+  # 3. Tempo
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [-config.file=/etc/tempo.yaml]
+    volumes:
+      - ./monitoring/tempo-config.yaml:/etc/tempo.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    networks:
+      - monitoring_net
+
+  # 4. Grafana (Webmaske)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_DATASOURCES_DEFAULT_NAME=Prometheus
+      - GF_DATASOURCES_0_NAME=Prometheus
+      - GF_DATASOURCES_0_TYPE=prometheus
+      - GF_DATASOURCES_0_URL=http://prometheus:9090
+      - GF_DATASOURCES_0_ACCESS=proxy
+      - GF_DATASOURCES_1_NAME=Loki
+      - GF_DATASOURCES_1_TYPE=loki
+      - GF_DATASOURCES_1_URL=http://loki:3100
+      - GF_DATASOURCES_1_ACCESS=proxy
+      - GF_DATASOURCES_2_NAME=Tempo
+      - GF_DATASOURCES_2_TYPE=tempo
+      - GF_DATASOURCES_2_URL=http://tempo:3200
+      - GF_DATASOURCES_2_ACCESS=proxy
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - monitoring_net
+
+  # 5. Aegis Gatekeeper
+  aegis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aegis
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - VAULT_ADDR=${VAULT_ADDR}
+      - AEGIS_APPROLE_ROLE_ID=${AEGIS_APPROLE_ROLE_ID}
+      - AEGIS_APPROLE_SECRET_ID=${AEGIS_APPROLE_SECRET_ID}
+
+      # --- Konfiguration ---
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_SERVICE_NAME=aegis
+      - ATHENA_SERVICE_URL=${ATHENA_SERVICE_URL}
+      - ATHENA_CONFIG_URL=${ATHENA_CONFIG_URL}
+      - ATHENA_CONTEXT_MAP_URL=${ATHENA_CONTEXT_MAP_URL}
+      - ATHENA_INTERNAL_SECRET=${ATHENA_INTERNAL_SECRET}
+      - AEGIS_PORT=${AEGIS_PORT:-8080}
+      - AEGIS_METRICS_PORT=${AEGIS_METRICS_PORT:-9090}
+      - AEGIS_REDIS_ADDR=${AEGIS_REDIS_ADDR}
+      - JWT_PUBLIC_KEY_PATH=${JWT_PUBLIC_KEY_PATH}
+    volumes:
+      - ./configs:/app/configs
+    networks:
+      - monitoring_net
+    depends_on:
+      redis:
+        condition: service_started
+      vault:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  # 6. Athena Auth Service
+  athena:
+    build:
+      context: ../Athena
+      dockerfile: Dockerfile
+    container_name: athena
+    ports:
+      - "8081:8081"
+    environment:
+      # --- AUTH-MODELL (AppRole) ---
+      - VAULT_ADDR=${VAULT_ADDR}
+      - ATHENA_APPROLE_ROLE_ID=${ATHENA_APPROLE_ROLE_ID}
+      - ATHENA_APPROLE_SECRET_ID=${ATHENA_APPROLE_SECRET_ID}
+      - ATHENA_INTERNAL_SECRET=${ATHENA_INTERNAL_SECRET}
+
+      # --- Konfiguration ---
+      - PORT=8081
+      - VAULT_JWT_SECRET_PATH=${VAULT_JWT_SECRET_PATH}
+      - VAULT_DB_CREDS_PATH=${VAULT_DB_CREDS_PATH}
+      - JWT_ACCESS_TOKEN_TTL=15m
+      - JWT_REFRESH_TOKEN_TTL=168h
+      - OTP_ISSUER_NAME=AthenaApp
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=athena_db
+    networks:
+      - monitoring_net
+    depends_on:
+      - loki
+      - vault
+      - db
+    restart: on-failure
+
+  # 7. Promtail Log Shipper
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./monitoring/promtail-config.yaml:/etc/promtail/promtail-config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail-positions:/tmp
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    networks:
+      - monitoring_net
+    depends_on:
+      - loki
+
+  # 8. Redis
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - monitoring_net
+
+  # 9. HashiCorp Vault
+  vault:
+    image: vault:1.13.3
+    container_name: vault
+    ports:
+      - "8200:8200"
+      - "8201:8201"
+    environment:
+      - VAULT_TOKEN=${VAULT_TOKEN}
+      - VAULT_ADDR=http://0.0.0.0:8200
+    command: server
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./monitoring/vault-config.hcl:/vault/config/config.hcl:ro
+      - vault-data:/vault/file
+    networks:
+      - monitoring_net
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 10. UI (Entwickluns-Server)
+  ui:
+    image: nginx:1.27-alpine
+    container_name: ui
+    ports:
+      - "8082:80"
+    volumes:
+      - ../AthenaUI:/usr/share/nginx/html:ro
+    networks:
+      - monitoring_net
+
+  db:
+    image: mysql:8.0.44-debian
+    container_name: db
+    command: --authentication_policy=caching_sha2_password
+    restart: always
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: athena_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - monitoring_net
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${DB_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  monitoring_net:
+    driver: bridge
+
+volumes:
+  promtail-positions:
+  vault-data:
+  db_data:

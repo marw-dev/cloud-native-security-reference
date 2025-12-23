@@ -1,0 +1,48 @@
+routes:
+  - path: /api/auth/*
+    target_url: http://localhost:8081
+    rate_limit:
+      limit: 20
+      window: 1m
+    cache_ttl: 0s
+    circuit_breaker:
+      failure_threshold: 10
+      open_timeout: 30s
+  - path: /api/users/*
+    target_url: http://localhost:8081
+    required_roles:
+      - user
+    rate_limit:
+      limit: 100
+      window: 1m
+    cache_ttl: 0s
+    circuit_breaker:
+      failure_threshold: 5
+      open_timeout: 15s
+  - path: /api/auth/otp/*
+    target_url: http://localhost:8081
+    required_roles:
+      - user
+    rate_limit:
+      limit: 50
+      window: 1m
+    cache_ttl: 0s
+    circuit_breaker:
+      failure_threshold: 5
+      open_timeout: 15s
+  - path: /api/v2/auth/*
+    target_url: http://localhost:8081
+    rate_limit:
+      limit: 20
+      window: 1m
+    cache_ttl: 0s
+    circuit_breaker:
+      failure_threshold: 0
+      open_timeout: 0s
+port: 8080
+jwt_public_key_path: configs/public.pem
+cors:
+  allowed_origins:
+    - http://localhost:8081
+metrics_port: 9090
+redis_addr: localhost:6379

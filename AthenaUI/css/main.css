@@ -1,0 +1,776 @@
+:root {
+  /* --- Typografie (Präzise & Modern) --- */
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-heading: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", "Consolas", monospace;
+
+  /* --- Farbpalette (Enterprise Security - Dark Slate Theme) --- */
+  /* Hintergrund: Kühles, tiefes Grau statt reinem Schwarz für weniger Augenbelastung */
+  --color-bg: hsl(220, 20%, 10%);
+
+  /* Oberflächen: Leichte Abstufung für Tiefe */
+  --color-surface: hsl(220, 18%, 14%);
+  --color-surface-hover: hsl(220, 18%, 17%);
+  --color-surface-active: hsl(220, 18%, 20%);
+
+  /* Text: Hoher Kontrast, aber nicht #FFF (zu grell) */
+  --color-text: hsl(220, 20%, 96%);
+  --color-text-muted: hsl(220, 15%, 65%);
+  --color-text-faint: hsl(220, 15%, 45%);
+
+  /* Ränder: Subtil, technisch */
+  --color-border: hsl(220, 15%, 22%);
+  --color-border-focus: hsl(216, 90%, 55%);
+
+  /* Akzentfarbe: "Trust Blue" (IBM/Tech Blue) */
+  --color-primary: hsl(217, 90%, 60%);
+  --color-primary-hover: hsl(217, 90%, 50%);
+  --color-primary-subtle: hsla(217, 90%, 60%, 0.1);
+
+  /* Status (Gedämpft, nicht neon) */
+  --color-error: hsl(350, 80%, 60%);
+  --color-error-bg: hsla(350, 80%, 60%, 0.1);
+  --color-success: hsl(150, 60%, 45%);
+  --color-success-bg: hsla(150, 60%, 45%, 0.1);
+  --color-warning: hsl(35, 90%, 60%);
+
+  /* --- Struktur & Effekte --- */
+  /* Kleinerer Radius für technischeren Look */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* Schatten: Subtil, nur für Elevation */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4),
+    0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Basis-Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Globaler Header (Logo) --- */
+.global-header {
+  width: 100%;
+  background-color: rgba(22, 27, 34, 0.85);
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(12px);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.logo-container h1 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.logo-container:hover h1 {
+  color: var(--color-primary-hover);
+}
+
+.logo-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-primary);
+}
+
+.logo-container:hover .logo-icon {
+  transform: rotate(-5deg) scale(1.05);
+  filter: drop-shadow(0 0 12px var(--color-primary-glow));
+}
+
+/* --- Hauptlayout & App-Root --- */
+.main-content {
+  flex-grow: 1;
+  width: 100%;
+  max-width: 1200px;
+  padding: 2.5rem 2rem;
+  margin: 0 auto;
+  animation: fadeIn 0.6s ease;
+}
+
+#app-root {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+/* --- Typografie --- */
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 1.25rem;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 2rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-text) 0%,
+    var(--color-text-light) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+h3 {
+  font-size: 1.5rem;
+  margin-top: 2rem;
+}
+
+h4 {
+  font-size: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+p {
+  margin-bottom: 1rem;
+  color: var(--color-text-light);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+  position: relative;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+a::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--color-primary);
+  transition: width var(--transition-normal);
+}
+
+a:hover::after {
+  width: 100%;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2.5rem 0;
+}
+
+/* --- Formulare & Eingabeelemente --- */
+form {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+form:focus-within {
+  border-color: var(--color-border-light);
+}
+
+.login-form,
+.register-form {
+  max-width: 480px;
+  margin: 2rem auto;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
+/* ALLE Input-Typen konsistent stylen */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+textarea,
+select {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-normal);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0a0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+/* Hover-State für alle Inputs */
+input[type="text"]:hover,
+input[type="email"]:hover,
+input[type="password"]:hover,
+input[type="number"]:hover,
+input[type="tel"]:hover,
+input[type="url"]:hover,
+input[type="search"]:hover,
+input[type="date"]:hover,
+input[type="time"]:hover,
+input[type="datetime-local"]:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--color-border-light);
+  background-color: var(--color-surface);
+}
+
+/* Focus-State mit "Vault-Style" Glow */
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 3px var(--color-primary-focus),
+    0 0 20px -5px var(--color-primary-glow);
+}
+
+/* Disabled State */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--color-bg);
+}
+
+/* Placeholder Styling */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-light);
+  opacity: 0.6;
+}
+
+/* Checkbox & Radio Styling */
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.checkbox-group label {
+  font-weight: 400;
+  color: var(--color-text-light);
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* --- Buttons --- */
+button {
+  display: inline-block;
+  padding: 0.875rem 1.75rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+button::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transform: translate(-50%, -50%);
+  transition: width var(--transition-slow), height var(--transition-slow);
+}
+
+button:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+button:hover {
+  background-color: var(--color-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--color-primary-glow);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px var(--color-primary-glow);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:disabled:hover {
+  background-color: var(--color-primary);
+  box-shadow: none;
+}
+
+/* Sekundärer Button */
+button.button-secondary {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+  font-weight: 600;
+}
+
+button.button-secondary:hover {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  box-shadow: 0 0 20px var(--color-primary-glow);
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+/* --- Fehler- & Erfolgsmeldungen --- */
+.error,
+.success {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0;
+  transition: all var(--transition-normal);
+  animation: slideIn 0.3s ease;
+}
+
+.error:not(:empty),
+.success:not(:empty) {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  border: 1.5px solid;
+  position: relative;
+  overflow: hidden;
+}
+
+.error:not(:empty)::before,
+.success:not(:empty)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  transition: width var(--transition-normal);
+}
+
+.error:not(:empty):hover::before,
+.success:not(:empty):hover::before {
+  width: 8px;
+}
+
+.error:not(:empty) {
+  color: var(--color-error);
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error);
+  box-shadow: 0 0 20px var(--color-error-glow);
+}
+
+.error:not(:empty)::before {
+  background-color: var(--color-error);
+}
+
+.success:not(:empty) {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+  box-shadow: 0 0 20px var(--color-success-glow);
+}
+
+.success:not(:empty)::before {
+  background-color: var(--color-success);
+}
+
+/* --- Dashboard & Projekt-Karten --- */
+.projekt-karte,
+.user-karte {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.projekt-karte::before,
+.user-karte::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary-hover)
+  );
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--transition-normal);
+}
+
+.projekt-karte:hover::before,
+.user-karte:hover::before {
+  transform: scaleX(1);
+}
+
+#projekt-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.75rem;
+}
+
+.projekt-karte:hover,
+.user-karte:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.projekt-karte strong {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.375rem;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+.projekt-karte p {
+  color: var(--color-text-light);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.projekt-karte button {
+  width: 100%;
+  margin-top: auto;
+}
+
+/* Benutzerliste */
+#user-liste-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.user-karte {
+  padding: 1.5rem;
+}
+
+.user-karte strong {
+  font-size: 1.125rem;
+  color: var(--color-text);
+}
+
+.user-karte p {
+  font-size: 0.875rem;
+  margin-bottom: 0.375rem;
+  color: var(--color-text-light);
+}
+
+.user-karte button {
+  font-size: 0.85rem;
+  padding: 0.625rem 1rem;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+/* --- Projekt-Detail-Ansicht (Tabs) --- */
+.tabs-container {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid var(--color-border);
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.tabs-container button {
+  font-family: var(--font-body);
+  font-weight: 600;
+  background: none;
+  color: var(--color-text-light);
+  padding: 1rem 1.5rem;
+  border-radius: 0;
+  border: none;
+  border-bottom: 3px solid transparent;
+  transition: all var(--transition-fast);
+  position: relative;
+  white-space: nowrap;
+}
+
+.tabs-container button::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary);
+  transform: scaleX(0);
+  transition: transform var(--transition-normal);
+}
+
+.tabs-container button:hover {
+  background: var(--color-primary-light);
+  color: var(--color-text);
+}
+
+.tabs-container button.active {
+  color: var(--color-primary);
+}
+
+.tabs-container button.active::after {
+  transform: scaleX(1);
+}
+
+/* --- Tabellen --- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+thead {
+  background-color: var(--color-bg);
+}
+
+th,
+td {
+  padding: 1rem 1.25rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+th {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background-color: var(--color-primary-light);
+}
+
+td button {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.875rem;
+  margin-right: 0.5rem;
+}
+
+/* --- QR-Code Styling --- */
+img[src^="data:image/png;base64"] {
+  display: block;
+  max-width: 220px;
+  height: auto;
+  margin: 1.5rem auto;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  font-size: 0.9em;
+}
+
+/* --- Animationen --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1.5rem 1rem;
+  }
+
+  .global-header {
+    padding: 1rem 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.625rem;
+  }
+
+  form {
+    padding: 1.75rem;
+  }
+
+  #projekt-liste,
+  #user-liste-container {
+    grid-template-columns: 1fr;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group button {
+    width: 100%;
+  }
+}

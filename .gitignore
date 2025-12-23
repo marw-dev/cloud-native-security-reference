@@ -1,0 +1,24 @@
+# Binaries
+/bin/
+*.exe
+*.test
+
+# Environment & Secrets (WICHTIG!)
+.env
+*.env
+*.pem
+*.key
+vault/data/
+mysql/data/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+
+# Node Modules (Frontend)
+node_modules/
+dist/
+
+# Logs
+*.log

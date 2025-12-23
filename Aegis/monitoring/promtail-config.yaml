@@ -1,0 +1,38 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/log/pods/*/*.log # Pfad zu Container-Logs (Anpassen, falls nötig)
+    pipeline_stages:
+      - docker: {}
+      - static_labels:
+          agent: promtail
+    relabel_configs:
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(loki|prometheus|grafana|tempo|promtail)"
+        action: drop
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "container"
+        replacement: "$1"
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/athena.*"
+        target_label: "service"
+        replacement: "athena"
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/aegis.*"
+        target_label: "service"
+        replacement: "aegis"
